@@ -17,27 +17,27 @@ class GATRNNHybridModel(nn.Module):
     def __init__(self, temporal_input_size=4, graph_input_size=7, hidden_size=64):
         super(GATRNNHybridModel, self).__init__()
         
-        # Match the trained model architecture EXACTLY
         self.temporal_encoder = nn.LSTM(
             temporal_input_size, 
             hidden_size,
-            num_layers=3,  # Changed from 2 to 3
+            num_layers=3,
             batch_first=True,
-            bidirectional=True,  # Added bidirectional
+            bidirectional=True,
             dropout=0.2
         )
         
         if TORCH_GEOMETRIC_AVAILABLE:
-            self.gat1 = GATConv(graph_input_size, hidden_size, heads=8)  # Changed heads from 4 to 8
-            self.gat2 = GATConv(hidden_size * 8, hidden_size * 2, heads=4)  # Changed structure
-            self.gat3 = GATConv(hidden_size * 8, hidden_size, heads=1)  # Added third layer
+            self.gat1 = GATConv(graph_input_size, hidden_size, heads=8)
+            self.gat2 = GATConv(hidden_size * 8, hidden_size * 2, heads=4)
+            self.gat3 = GATConv(hidden_size * 8, hidden_size, heads=1)
         else:
             self.fc1 = nn.Linear(graph_input_size, hidden_size * 8)
             self.fc2 = nn.Linear(hidden_size * 8, hidden_size * 8)
             self.fc3 = nn.Linear(hidden_size * 8, hidden_size)
-            self.relu = nn.ReLU()
         
-        # Changed to LayerNorm
+        # Add relu as attribute for fallback path
+        self.relu = nn.ReLU()
+        
         self.graph_norm1 = nn.LayerNorm(hidden_size * 8)
         self.graph_norm2 = nn.LayerNorm(hidden_size * 8)
         self.graph_norm3 = nn.LayerNorm(hidden_size)
@@ -48,7 +48,6 @@ class GATRNNHybridModel(nn.Module):
             nn.Dropout(0.2)
         )
         
-        # Updated fusion for bidirectional LSTM (hidden_size * 2)
         fusion_input_size = hidden_size * 2 + hidden_size
         
         self.fusion = nn.Sequential(
