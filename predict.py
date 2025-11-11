@@ -141,10 +141,12 @@ def load_model_and_dataset():
     )
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Initialize model with correct hidden_size from checkpoint (32, not 8)
     model = GATRNNHybrid(
         temporal_input_size=7,
         graph_input_size=8,
-        hidden_size=8
+        hidden_size=32  # Changed from 8 to 32 to match checkpoint
     ).to(device)
     
     # Load checkpoint - handle both full checkpoint and state_dict formats
