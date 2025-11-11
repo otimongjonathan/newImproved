@@ -135,31 +135,41 @@ class GATRNNHybrid(nn.Module):
     def __init__(self, temporal_input_size, graph_input_size, hidden_size):
         super(GATRNNHybrid, self).__init__()
         
-        # Temporal pathway (RNN)
-        self.rnn = nn.LSTM(temporal_input_size, hidden_size, batch_first=True)
+        # Temporal pathway - match checkpoint naming: temporal_encoder (not rnn)
+        self.temporal_encoder = nn.LSTM(
+            temporal_input_size, 
+            hidden_size, 
+            num_layers=2,  # checkpoint has 2 layers
+            batch_first=True
+        )
         
-        # Graph pathway (use simple linear layers if GAT not available)
+        # Graph pathway
         if TORCH_GEOMETRIC_AVAILABLE:
             self.gat1 = GATConv(graph_input_size, hidden_size, heads=4)
             self.gat2 = GATConv(hidden_size * 4, hidden_size, heads=1)
         else:
-            # Fallback to simple feedforward network
             self.fc1 = nn.Linear(graph_input_size, hidden_size * 4)
             self.fc2 = nn.Linear(hidden_size * 4, hidden_size)
             self.relu = nn.ReLU()
         
+        # Graph normalization
         self.graph_norm = nn.BatchNorm1d(hidden_size)
         
-        # Simplified fusion network
+        # Graph projection layer (from checkpoint)
+        self.graph_proj = nn.Linear(hidden_size, hidden_size)
+        
+        # Fusion layers - match checkpoint structure
         self.fusion = nn.Sequential(
-            nn.Linear(hidden_size * 2, hidden_size),
+            nn.Linear(hidden_size * 2, hidden_size),  # fusion.0
+            nn.BatchNorm1d(hidden_size),              # fusion.1
             nn.ReLU(),
-            nn.Linear(hidden_size, 5)
+            nn.Dropout(0.3),
+            nn.Linear(hidden_size, 5)                 # fusion.4 - output layer
         )
     
     def forward(self, temporal_x, graph_x, edge_index=None, batch=None):
         # Temporal pathway
-        rnn_out, _ = self.rnn(temporal_x.unsqueeze(1))
+        rnn_out, _ = self.temporal_encoder(temporal_x.unsqueeze(1))
         rnn_out = rnn_out.squeeze(1)
         
         # Graph pathway
@@ -168,18 +178,20 @@ class GATRNNHybrid(nn.Module):
             graph_out = torch.relu(graph_out)
             graph_out = self.gat2(graph_out, edge_index)
         else:
-            # Fallback pathway
             graph_out = self.relu(self.fc1(graph_x))
             graph_out = self.fc2(graph_out)
         
-        # Ensure temporal and graph features have same batch dimension
-        batch_size = temporal_x.size(0)
-        if graph_out.size(0) != batch_size:
-            graph_out = graph_out[:batch_size]
+        # Normalize and project graph features
+        graph_out = self.graph_norm(graph_out)
+        graph_out = self.graph_proj(graph_out)
         
-        # Fusion
+        # Combine temporal and graph features
         combined = torch.cat([rnn_out, graph_out], dim=1)
-        return self.fusion(combined)
+        
+        # Fusion and output
+        output = self.fusion(combined)
+        
+        return output
 
 def evaluate_model(model, loader, criterion, device):
     """Evaluate model with detailed metrics"""

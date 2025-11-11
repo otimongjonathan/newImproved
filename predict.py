@@ -183,17 +183,24 @@ def load_model_and_dataset():
     ).to(device)
     
     print(f"📦 Loading model weights from {model_path}...")
-    checkpoint = torch.load(model_path, map_location=device)
-    
-    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-        print(f"✅ Loading from full checkpoint (epoch {checkpoint.get('epoch', 'unknown')})")
-        model.load_state_dict(checkpoint['model_state_dict'])
-    else:
-        print("✅ Loading from state dict")
-        model.load_state_dict(checkpoint)
-    
-    model.eval()
-    print("✅ Model loaded and set to eval mode!")
+    try:
+        checkpoint = torch.load(model_path, map_location=device)
+        
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            print(f"✅ Loading from full checkpoint (epoch {checkpoint.get('epoch', 'unknown')})")
+            model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+        else:
+            print("✅ Loading from state dict")
+            model.load_state_dict(checkpoint, strict=False)
+        
+        model.eval()
+        print("✅ Model loaded and set to eval mode!")
+        
+    except Exception as e:
+        print(f"❌ Error loading model weights: {e}")
+        import traceback
+        print(traceback.format_exc())
+        raise
     
     return model, test_dataset, train_dataset.scalers, device
 
