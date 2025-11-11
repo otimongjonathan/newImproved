@@ -3,7 +3,14 @@ import json
 import os
 import logging
 import traceback
-from predict import load_model_and_dataset, predict_future_prices
+
+# Try to import prediction functions, but handle if they fail
+try:
+    from predict import load_model_and_dataset, predict_future_prices
+    PREDICT_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Could not import predict functions: {e}")
+    PREDICT_AVAILABLE = False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -11,28 +18,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-print("Loading model and dataset...")
+print("=" * 50)
+print("Starting Agricultural Price Predictor")
+print("=" * 50)
+
 MODEL_LOADED = False
 model, dataset, scalers, device = None, None, None, None
 
-try:
-    model, dataset, scalers, device = load_model_and_dataset()
-    MODEL_LOADED = True
-    print("✅ Model loaded successfully!")
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    print(traceback.format_exc())
+if PREDICT_AVAILABLE:
+    print("Loading model and dataset...")
+    try:
+        model, dataset, scalers, device = load_model_and_dataset()
+        MODEL_LOADED = True
+        print("✅ Model loaded successfully!")
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
+        print(traceback.format_exc())
+else:
+    print("⚠️ Predict module not available - using fallback mode")
 
 def predict_prices(region, district, crop, acres, forecast_months):
     """Make price predictions"""
-    if not MODEL_LOADED:
-        error_msg = "⚠️ **Model Loading Error**\n\n"
-        error_msg += "The AI model failed to load. This could be due to:\n"
-        error_msg += "- Model architecture mismatch\n"
-        error_msg += "- Missing model file\n"
-        error_msg += "- Incompatible dependencies\n\n"
-        error_msg += "**Check the container logs for detailed error messages.**"
-        return error_msg
+    if not MODEL_LOADED or not PREDICT_AVAILABLE:
+        # Fallback: Return demo predictions
+        return generate_demo_predictions(region, district, crop, acres, forecast_months)
     
     try:
         predictions = predict_future_prices(
@@ -73,7 +82,51 @@ def predict_prices(region, district, crop, acres, forecast_months):
         return output
         
     except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        logger.error(traceback.format_exc())
         return f"❌ **Error:** {str(e)}\n\nPlease try different inputs or contact support."
+
+def generate_demo_predictions(region, district, crop, acres, forecast_months):
+    """Generate demo predictions when model isn't available"""
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    import random
+    
+    output = f"# 📊 Price Forecasts for {crop} in {district}, {region}\n\n"
+    output += f"**⚠️ DEMO MODE:** Model loading failed. Showing sample predictions.\n\n"
+    output += f"**Farm Size:** {acres} acres | **Forecast Period:** {forecast_months} months\n\n"
+    output += "| Month | Seed (UGX) | Fertilizer (UGX) | Herbicide (UGX) | Pesticide (UGX) | Labor (UGX) |\n"
+    output += "|-------|------------|------------------|-----------------|-----------------|-------------|\n"
+    
+    # Base prices
+    base_prices = {
+        'seed': 45000,
+        'fertilizer': 120000,
+        'herbicide': 35000,
+        'pesticide': 28000,
+        'labor': 15000
+    }
+    
+    current_date = datetime.now()
+    for i in range(forecast_months):
+        future_date = current_date + relativedelta(months=i)
+        month_name = future_date.strftime('%B %Y')
+        
+        # Add some variation
+        variation = 1 + (random.random() - 0.5) * 0.2
+        
+        seed_price = int(base_prices['seed'] * variation * (1 + i * 0.02))
+        fert_price = int(base_prices['fertilizer'] * variation * (1 + i * 0.025))
+        herb_price = int(base_prices['herbicide'] * variation * (1 + i * 0.02))
+        pest_price = int(base_prices['pesticide'] * variation * (1 + i * 0.019))
+        labor_price = int(base_prices['labor'] * variation * (1 + i * 0.015))
+        
+        output += f"| {month_name} | {seed_price:,.0f} | {fert_price:,.0f} | {herb_price:,.0f} | {pest_price:,.0f} | {labor_price:,.0f} |\n"
+    
+    output += f"\n**📌 Note:** These are sample predictions only. The AI model failed to load.\n"
+    output += "**Check Space logs for details:** https://huggingface.co/spaces/Jonah-Ryt/agri-price-predictor/logs\n"
+    
+    return output
 
 def update_districts(region):
     """Update district dropdown based on selected region"""
@@ -83,7 +136,8 @@ def update_districts(region):
         'Western': ['Mbarara', 'Kabale', 'Fort Portal', 'Kasese', 'Hoima'],
         'Northern': ['Gulu', 'Lira', 'Arua', 'Kitgum', 'Pader']
     }
-    return gr.Dropdown(choices=districts_by_region.get(region, []), value=districts_by_region.get(region, [])[0])
+    choices = districts_by_region.get(region, [])
+    return gr.Dropdown(choices=choices, value=choices[0] if choices else None)
 
 # Create Gradio interface
 with gr.Blocks(theme=gr.themes.Soft(), title="Agricultural Price Predictor - Uganda") as demo:
@@ -151,7 +205,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Agricultural Price Predictor - Uga
             if MODEL_LOADED:
                 status_msg = "✅ **Model Status:** Loaded and ready"
             else:
-                status_msg = "❌ **Model Status:** Failed to load - check logs"
+                status_msg = "⚠️ **Model Status:** Running in demo mode - check logs"
             
             gr.Markdown(status_msg)
             output = gr.Markdown(value="*Click 'Predict Prices' to see forecasts*")
@@ -197,4 +251,4 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Agricultural Price Predictor - Uga
     """)
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(server_name="0.0.0.0", server_port=7860)
