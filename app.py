@@ -1,17 +1,3 @@
-"""
----
-title: Agricultural Price Predictor Uganda
-emoji: 🌾
-colorFrom: green
-colorTo: yellow
-sdk: gradio
-sdk_version: 4.44.0
-app_file: app.py
-pinned: false
-license: mit
----
-"""
-
 import gradio as gr
 import json
 import os
