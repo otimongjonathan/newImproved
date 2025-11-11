@@ -72,7 +72,17 @@ class GATRNNHybridModel(nn.Module):
         rnn_out, _ = self.temporal_encoder(temporal_x.unsqueeze(1))
         rnn_out = rnn_out.squeeze(1)
         
-        if TORCH_GEOMETRIC_AVAILABLE and edge_index is not None:
+        # FIX: Always use GAT if available
+        if TORCH_GEOMETRIC_AVAILABLE:
+            # Create self-loop edges if edge_index is None
+            if edge_index is None:
+                batch_size = graph_x.size(0)
+                # Self-loops: each node connects to itself
+                edge_index = torch.stack([
+                    torch.arange(batch_size, dtype=torch.long),
+                    torch.arange(batch_size, dtype=torch.long)
+                ], dim=0).to(graph_x.device)
+            
             graph_out = self.gat1(graph_x, edge_index)
             graph_out = self.graph_norm1(graph_out)
             graph_out = torch.relu(graph_out)
@@ -84,6 +94,7 @@ class GATRNNHybridModel(nn.Module):
             graph_out = self.gat3(graph_out, edge_index)
             graph_out = self.graph_norm3(graph_out)
         else:
+            # Fallback pathway
             graph_out = self.relu(self.fc1(graph_x))
             graph_out = self.graph_norm1(graph_out)
             
