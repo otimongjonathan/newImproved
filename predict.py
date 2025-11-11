@@ -179,7 +179,7 @@ def load_model_and_dataset():
     model = GATRNNHybrid(
         temporal_input_size=7,
         graph_input_size=8,
-        hidden_size=32
+        hidden_size=8  # Changed back to 8 to match checkpoint!
     ).to(device)
     
     print(f"📦 Loading model weights from {model_path}...")

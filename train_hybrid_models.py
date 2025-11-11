@@ -135,18 +135,18 @@ class GATRNNHybrid(nn.Module):
     def __init__(self, temporal_input_size, graph_input_size, hidden_size):
         super(GATRNNHybrid, self).__init__()
         
-        # Temporal pathway - match checkpoint naming: temporal_encoder (not rnn)
+        # Temporal pathway - LSTM with 2 layers, hidden_size=8
         self.temporal_encoder = nn.LSTM(
             temporal_input_size, 
-            hidden_size, 
-            num_layers=2,  # checkpoint has 2 layers
+            hidden_size,  # This will be 8
+            num_layers=2,
             batch_first=True
         )
         
-        # Graph pathway
+        # Graph pathway - GAT layers with hidden_size=8
         if TORCH_GEOMETRIC_AVAILABLE:
-            self.gat1 = GATConv(graph_input_size, hidden_size, heads=4)
-            self.gat2 = GATConv(hidden_size * 4, hidden_size, heads=1)
+            self.gat1 = GATConv(graph_input_size, hidden_size, heads=4)  # 8*4=32 output
+            self.gat2 = GATConv(hidden_size * 4, hidden_size, heads=1)   # 32->8
         else:
             self.fc1 = nn.Linear(graph_input_size, hidden_size * 4)
             self.fc2 = nn.Linear(hidden_size * 4, hidden_size)
@@ -155,16 +155,16 @@ class GATRNNHybrid(nn.Module):
         # Graph normalization
         self.graph_norm = nn.BatchNorm1d(hidden_size)
         
-        # Graph projection layer (from checkpoint)
+        # Graph projection
         self.graph_proj = nn.Linear(hidden_size, hidden_size)
         
-        # Fusion layers - match checkpoint structure
+        # Fusion layers
         self.fusion = nn.Sequential(
-            nn.Linear(hidden_size * 2, hidden_size),  # fusion.0
-            nn.BatchNorm1d(hidden_size),              # fusion.1
+            nn.Linear(hidden_size * 2, hidden_size),  # 16->8
+            nn.BatchNorm1d(hidden_size),
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Linear(hidden_size, 5)                 # fusion.4 - output layer
+            nn.Linear(hidden_size, 5)  # 8->5 outputs
         )
     
     def forward(self, temporal_x, graph_x, edge_index=None, batch=None):
