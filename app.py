@@ -2,6 +2,7 @@ import gradio as gr
 import json
 import os
 import logging
+import traceback
 from predict import load_model_and_dataset, predict_future_prices
 
 logging.basicConfig(
@@ -11,19 +12,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 print("Loading model and dataset...")
+MODEL_LOADED = False
+model, dataset, scalers, device = None, None, None, None
+
 try:
     model, dataset, scalers, device = load_model_and_dataset()
     MODEL_LOADED = True
-    print("Model loaded successfully!")
+    print("✅ Model loaded successfully!")
 except Exception as e:
-    print(f"Error loading model: {e}")
-    MODEL_LOADED = False
-    model, dataset, scalers, device = None, None, None, None
+    print(f"❌ Error loading model: {e}")
+    print(traceback.format_exc())
 
 def predict_prices(region, district, crop, acres, forecast_months):
     """Make price predictions"""
     if not MODEL_LOADED:
-        return "⚠️ **Error:** Model not loaded. Please check logs."
+        error_msg = "⚠️ **Model Loading Error**\n\n"
+        error_msg += "The AI model failed to load. This could be due to:\n"
+        error_msg += "- Model architecture mismatch\n"
+        error_msg += "- Missing model file\n"
+        error_msg += "- Incompatible dependencies\n\n"
+        error_msg += "**Check the container logs for detailed error messages.**"
+        return error_msg
     
     try:
         predictions = predict_future_prices(
@@ -66,6 +75,16 @@ def predict_prices(region, district, crop, acres, forecast_months):
     except Exception as e:
         return f"❌ **Error:** {str(e)}\n\nPlease try different inputs or contact support."
 
+def update_districts(region):
+    """Update district dropdown based on selected region"""
+    districts_by_region = {
+        'Central': ['Kampala', 'Wakiso', 'Mukono', 'Masaka', 'Mubende', 'Mityana'],
+        'Eastern': ['Mbale', 'Jinja', 'Soroti', 'Tororo', 'Iganga', 'Kamuli'],
+        'Western': ['Mbarara', 'Kabale', 'Fort Portal', 'Kasese', 'Hoima'],
+        'Northern': ['Gulu', 'Lira', 'Arua', 'Kitgum', 'Pader']
+    }
+    return gr.Dropdown(choices=districts_by_region.get(region, []), value=districts_by_region.get(region, [])[0])
+
 # Create Gradio interface
 with gr.Blocks(theme=gr.themes.Soft(), title="Agricultural Price Predictor - Uganda") as demo:
     gr.Markdown("""
@@ -88,15 +107,17 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Agricultural Price Predictor - Uga
             )
             
             district = gr.Dropdown(
-                choices=["Kampala", "Wakiso", "Mukono", "Masaka", "Mbale", "Jinja", 
-                        "Soroti", "Mbarara", "Kabale", "Gulu", "Lira", "Arua"],
+                choices=["Kampala", "Wakiso", "Mukono", "Masaka", "Mubende", "Mityana"],
                 label="District",
                 value="Kampala",
                 info="Select your district"
             )
             
+            # Update districts when region changes
+            region.change(fn=update_districts, inputs=region, outputs=district)
+            
             crop = gr.Dropdown(
-                choices=["Maize", "Coffee", "Sweet Potatoes"],
+                choices=["Maize", "Coffee", "Sweet Potatoes", "Beans", "Cassava", "Rice"],
                 label="Crop Type",
                 value="Maize",
                 info="What are you growing?"
@@ -125,6 +146,14 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Agricultural Price Predictor - Uga
         
         with gr.Column(scale=2):
             gr.Markdown("### 📈 Price Forecasts")
+            
+            # Show model status
+            if MODEL_LOADED:
+                status_msg = "✅ **Model Status:** Loaded and ready"
+            else:
+                status_msg = "❌ **Model Status:** Failed to load - check logs"
+            
+            gr.Markdown(status_msg)
             output = gr.Markdown(value="*Click 'Predict Prices' to see forecasts*")
     
     predict_btn.click(
