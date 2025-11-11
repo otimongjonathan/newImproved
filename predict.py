@@ -121,8 +121,6 @@ def load_model_and_dataset():
     
     test_csv = os.path.join(base_path, 'test_dataset_cleaned.csv')
     train_csv = os.path.join(base_path, 'train_dataset_cleaned.csv')
-    
-    # Use the correct GAT-RNN hybrid model
     model_path = os.path.join(base_path, 'models', 'gat_rnn_hybrid_best.pth')
     
     if not os.path.exists(test_csv):
@@ -133,7 +131,6 @@ def load_model_and_dataset():
         raise FileNotFoundError(f"Model not found at {model_path}")
     
     test_df = pd.read_csv(test_csv)
-    
     train_df = pd.read_csv(train_csv)
     train_dataset = AgriculturalDataset(train_df, training=True)
     
@@ -150,7 +147,17 @@ def load_model_and_dataset():
         hidden_size=8
     ).to(device)
     
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    # Load checkpoint - handle both full checkpoint and state_dict formats
+    checkpoint = torch.load(model_path, map_location=device)
+    
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        # Full checkpoint format (with optimizer, epoch, etc.)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Loaded model from epoch {checkpoint.get('epoch', 'unknown')}")
+    else:
+        # Direct state_dict format
+        model.load_state_dict(checkpoint)
+    
     model.eval()
     
     return model, test_dataset, train_dataset.scalers, device
