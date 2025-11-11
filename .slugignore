@@ -1,0 +1,63 @@
+# Exclude from Heroku deployment slug
+__pycache__/
+*.pyc
+.git/
+.vscode/
+.idea/
+*.log
+tests/
+docs/
+*.md
+screenshots/
+examples/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Development files
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large unnecessary files
+*.png
+*.jpg
+*.jpeg
+*.gif
+plots/
+visualizations/
+
+# Raw data (keep only processed datasets)
+raw_data/
+*.xlsx
+
+# Files to exclude from slug
+*.md
+!README.md
+.git
+.gitignore
+.vscode
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.log
+tests
+docs
+*.ipynb
+.ipynb_checkpoints
+GIT_SETUP_GUIDE.md
+RAILWAY_DEPLOY.md
+compress_model.py

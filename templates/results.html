@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Prediction Results</title>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+	<style>
+		body { 
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			font-family: 'Inter', sans-serif;
+			min-height: 100vh;
+			padding: 2rem 0;
+		}
+		.btn-secondary {
+			background: white;
+			color: #667eea;
+			border: 2px solid #667eea;
+			border-radius: 0.5rem;
+			padding: 0.5rem 1.5rem;
+			font-weight: 600;
+			transition: all 0.2s;
+		}
+		.btn-secondary:hover {
+			background: #667eea;
+			color: white;
+		}
+		.card {
+			border: none;
+			border-radius: 0.75rem;
+			box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+			margin-bottom: 1.5rem;
+			background: white;
+		}
+		.card-header {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+			font-weight: 600;
+			border-radius: 0.75rem 0.75rem 0 0 !important;
+			padding: 1rem;
+		}
+		.table thead th {
+			border-top: none;
+			border-bottom: 2px solid #dee2e6;
+			font-weight: 600;
+			font-size: 0.85rem;
+			text-transform: uppercase;
+		}
+		.table-info {
+			background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+		}
+		h2 { color: white; font-weight: 700; }
+		#apiMessage { color: white; }
+	</style>
+</head>
+<body>
+	<div class="container mt-4">
+		<div class="d-flex justify-content-between align-items-center mb-3">
+			<h2>📊 Prediction Results</h2>
+			<a href="/" class="btn btn-secondary">New Prediction</a>
+		</div>
+
+		<div id="apiMessage" class="mb-3">Loading results...</div>
+
+		<div id="resultsRoot">
+			<script id="server-data" type="application/json">
+				{{ {'inputs': inputs or {}, 'forecasts': forecasts or [], 'requirements': requirements or {}} | tojson }}
+			</script>
+		</div>
+	</div>
+
+	<script>
+	(function(){
+		const root = document.getElementById('resultsRoot');
+		const msg = document.getElementById('apiMessage');
+
+		function fmtNum(n){ return Number(n).toLocaleString(); }
+
+		function render(pred) {
+			if (!pred || (!pred.forecasts && !pred.inputs)) {
+				msg.textContent = 'No prediction found. Please run a prediction first.';
+				root.innerHTML = '';
+				return;
+			}
+			msg.style.display = 'none';
+			const inputs = pred.inputs || {};
+			const req = pred.requirements || {};
+			const forecasts = pred.forecasts || [];
+
+			let html = '';
+			// Inputs summary
+			html += `<div class="card"><div class="card-body">
+				<h5>📋 Input Details</h5><ul>
+					<li><strong>Region:</strong> ${inputs.region || ''}</li>
+					<li><strong>District:</strong> ${inputs.district || ''}</li>
+					<li><strong>Crop:</strong> ${inputs.crop || ''}</li>
+					<li><strong>Acres:</strong> ${inputs.acres || ''}</li>
+					<li><strong>Forecast months:</strong> ${inputs.forecast_months || ''}</li>
+				</ul></div></div>`;
+
+			// Requirements table
+			if (req && Object.keys(req).length) {
+				html += `<div class="card"><div class="card-header">🌱 Crop Requirements</div><div class="card-body">
+					<table class="table table-sm"><thead><tr><th>Input</th><th class="text-right">Per Acre</th><th class="text-right">Unit</th></tr></thead><tbody>`;
+				for (const [k,v] of Object.entries(req)) {
+					const per = (v && (v.per_acre ?? v.amount)) ?? '';
+					const unit = (v && (v.unit ?? v.units)) ?? '';
+					html += `<tr><td>${k}</td><td class="text-right">${per !== '' ? per : '-'}</td><td class="text-right">${unit || '-'}</td></tr>`;
+				}
+				html += `</tbody></table></div></div>`;
+			}
+
+			// Forecasts with CORRECT CALCULATION
+			if (!Array.isArray(forecasts) || forecasts.length === 0) {
+				html += '<div class="alert alert-info">No forecast data available.</div>';
+			} else {
+				const keys = ['seed','fertilizer','herbicide','pesticide','labor'];
+				const acres = Number(inputs.acres) || 1;
+
+				for (const f of forecasts) {
+					const month = f.month ?? f.month_name ?? '';
+					html += `<div class="card"><div class="card-header">📅 ${month}</div><div class="card-body">`;
+					html += `<div class="table-responsive"><table class="table table-sm"><thead>
+						<tr><th>Input</th><th class="text-right">Qty / Acre</th><th class="text-right">Total Qty</th>
+						<th class="text-right">Price / Unit</th><th class="text-right">Total Cost</th></tr></thead><tbody>`;
+					let monthlyTotalCost = 0;
+					for (const k of keys) {
+						const unitPrice = (k in f && f[k] !== null && !isNaN(Number(f[k]))) ? Number(f[k]) : null;
+						const r = req[k] ?? req[k.toLowerCase()] ?? {};
+						const perQty = (r && (r.per_acre ?? r.amount)) ?? null;
+						const unit = (r && (r.unit ?? r.units)) ?? '';
+						const totalQty = perQty !== null ? (Number(perQty) * acres) : null;
+						
+						// CORRECT FORMULA: unitPrice * perQty * acres
+						let totalCost = null;
+						if (unitPrice !== null && perQty !== null) {
+							totalCost = unitPrice * Number(perQty) * acres;
+							monthlyTotalCost += totalCost;
+						} else if (unitPrice !== null) {
+							totalCost = unitPrice * acres;
+							monthlyTotalCost += totalCost;
+						}
+
+						html += `<tr>
+							<td>${k.charAt(0).toUpperCase()+k.slice(1)}</td>
+							<td class="text-right">${perQty !== null ? perQty + (unit ? ' ' + unit : '') : '-'}</td>
+							<td class="text-right">${totalQty !== null ? fmtNum(totalQty) + (unit ? ' ' + unit : '') : '-'}</td>
+							<td class="text-right">${unitPrice !== null ? fmtNum(unitPrice) + ' UGX' : '-'}</td>
+							<td class="text-right">${totalCost !== null ? fmtNum(totalCost) + ' UGX' : '-'}</td>
+						</tr>`;
+					}
+					html += `<tr class="table-info font-weight-bold">
+						<td>Monthly Total</td><td></td><td></td><td></td>
+						<td class="text-right"><strong>${fmtNum(monthlyTotalCost)} UGX</strong></td>
+					</tr>`;
+					html += `</tbody></table></div></div></div>`;
+				}
+			}
+			root.innerHTML = html;
+		}
+
+		// 1) Try sessionStorage
+		const local = sessionStorage.getItem('last_prediction');
+		if (local) {
+			try {
+				const obj = JSON.parse(local);
+				const payload = obj.predictions ? obj.predictions : obj;
+				render(payload);
+				sessionStorage.removeItem('last_prediction');
+				return;
+			} catch (e) { console.warn('Error parsing last_prediction', e); }
+		}
+
+		// 2) Try API session
+		fetch('/api/session_prediction', { credentials: 'same-origin' })
+			.then(async res => {
+				let body = await res.json().catch(() => null);
+				if (res.ok && body && body.success) {
+					render(body.predictions);
+					return;
+				}
+				// 3) Fallback to server-injected JSON
+				const serverScript = document.getElementById('server-data');
+				if (serverScript) {
+					try {
+						const parsed = JSON.parse(serverScript.textContent || '{}');
+						if (parsed && (parsed.forecasts || Object.keys(parsed.requirements || {}).length)) {
+							render(parsed);
+							return;
+						}
+					} catch (e) {}
+				}
+				msg.textContent = 'No prediction available. Run a prediction first.';
+			})
+			.catch(err => {
+				console.error('session_prediction fetch error', err);
+				const serverScript = document.getElementById('server-data');
+				if (serverScript) {
+					try {
+						const parsed = JSON.parse(serverScript.textContent || '{}');
+						if (parsed && (parsed.forecasts || Object.keys(parsed.requirements || {}).length)) {
+							render(parsed);
+							return;
+						}
+					} catch (e) {}
+				}
+				msg.textContent = 'Failed to load prediction.';
+			});
+	})();
+	</script>
+</body>
+</html>

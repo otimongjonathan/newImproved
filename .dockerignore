@@ -1,0 +1,77 @@
+# Documentation
+*.md
+docs/
+*.txt
+!requirements.txt
+!runtime.txt
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+*.pyo
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+
+# Environment
+.env*
+venv/
+env/
+ENV/
+
+# Deployment configs
+.railway/
+.slugignore
+*.md
+!README.md
+HEROKU_*.md
+RAILWAY_*.md
+GIT_*.md
+RENDER_*.md
+railway.toml
+nixpacks.toml
+Procfile.windows
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+
+# Scripts
+compress_model.py
+install.sh
+
+# Tests
+tests/
+test_*.py
+*_test.py

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Agricultural Input Cost Predictor</title>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+	<style>
+		* { box-sizing: border-box; }
+		body { 
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			font-family: 'Inter', sans-serif;
+			min-height: 100vh;
+			padding: 2rem 0;
+		}
+		.hero-card {
+			background: white;
+			border-radius: 1rem;
+			box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+			padding: 2rem;
+			margin-bottom: 2rem;
+		}
+		.hero-title {
+			font-weight: 700;
+			font-size: 1.75rem;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			margin-bottom: 0.5rem;
+		}
+		.hero-subtitle {
+			color: #6c757d;
+			font-size: 0.9rem;
+		}
+		.form-card {
+			background: white;
+			border-radius: 1rem;
+			box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+			padding: 2rem;
+		}
+		label {
+			font-weight: 600;
+			color: #495057;
+			margin-bottom: 0.5rem;
+			font-size: 0.9rem;
+		}
+		.form-control, .form-select {
+			border: 2px solid #e9ecef;
+			border-radius: 0.5rem;
+			padding: 0.75rem;
+			transition: all 0.2s;
+		}
+		.form-control:focus, .form-select:focus {
+			border-color: #667eea;
+			box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
+			outline: none;
+		}
+		.btn-primary {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			border: none;
+			border-radius: 0.5rem;
+			padding: 0.875rem 2rem;
+			font-weight: 600;
+			box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+			transition: all 0.3s;
+		}
+		.btn-primary:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+		}
+		.error-message { 
+			background: #fff3cd;
+			border: 1px solid #ffc107;
+			border-radius: 0.5rem;
+			color: #856404;
+			padding: 0.75rem;
+			margin: 1rem 0;
+			display: none;
+		}
+		#loadingSpinner { display: none; margin: 1rem 0; }
+		.spinner-border { color: #667eea; }
+		.card {
+			border: none;
+			border-radius: 0.75rem;
+			box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+			margin-bottom: 1.5rem;
+		}
+		.card-header {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+			font-weight: 600;
+			border-radius: 0.75rem 0.75rem 0 0 !important;
+			padding: 1rem;
+		}
+		.table thead th {
+			border-top: none;
+			border-bottom: 2px solid #dee2e6;
+			font-weight: 600;
+			font-size: 0.85rem;
+			text-transform: uppercase;
+		}
+		.table-info {
+			background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="hero-card">
+			<h1 class="hero-title">🌾 Agricultural Input Cost Predictor</h1>
+			<p class="hero-subtitle">
+				AI-powered price forecasts with seasonal adjustments, inflation modeling and supply-chain factors for accurate agricultural planning.
+			</p>
+		</div>
+
+		<div class="row">
+			<div class="col-lg-5 mb-4">
+				<div class="form-card">
+					<form id="predictionForm" method="POST" novalidate onsubmit="return false;">
+						<div class="mb-3">
+							<label>Region</label>
+							<select class="form-select" id="region" name="region" required>
+								<option value="">Select Region</option>
+								{% for region in regions %}
+								<option value="{{ region }}">{{ region }}</option>
+								{% endfor %}
+							</select>
+						</div>
+						<div class="mb-3">
+							<label>District</label>
+							<select class="form-select" id="district" name="district" required disabled>
+								<option value="">Select District</option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label>Crop</label>
+							<select class="form-select" id="crop" name="crop" required disabled>
+								<option value="">Select Crop</option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label>Number of Acres</label>
+							<input type="number" class="form-control" id="acres" name="acres" min="1" value="1" required>
+						</div>
+						<div class="mb-3">
+							<label>Forecast Period</label>
+							<select class="form-select" id="forecast_months" name="forecast_months" required>
+								{% for months in forecast_periods %}
+								<option value="{{ months }}">{{ months }} months ahead</option>
+								{% endfor %}
+							</select>
+						</div>
+						<div id="errorMessage" class="error-message" role="alert"></div>
+						<div id="loadingSpinner" class="text-center">
+							<div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>
+						</div>
+						<button type="button" class="btn btn-primary btn-block" id="submitBtn" onclick="submitPrediction(event)">Predict Costs</button>
+					</form>
+				</div>
+			</div>
+			<div class="col-lg-7">
+				<div id="resultsContainer" class="results"></div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+
+	async function submitPrediction(e) {
+		try {
+			if (e && e.preventDefault) e.preventDefault();
+			console.info('[INDEX] submitPrediction called');
+			hideError();
+			const data = readFormData();
+			console.info('[INDEX] form data', data);
+			if (!data.region || !data.district || !data.crop) {
+				showError('Please select region, district and crop.');
+				return;
+			}
+			const submitBtn = document.getElementById('submitBtn');
+			if (submitBtn) submitBtn.disabled = true;
+			showSpinner();
+
+			// Call API (no reliance on server session cookie here)
+			const res = await fetch('/api/predict', {
+				method: 'POST',
+				headers: {'Content-Type':'application/json'},
+				credentials: 'same-origin',
+				body: JSON.stringify(data)
+			});
+			let body = null;
+			try { body = await res.json(); } catch (err) { body = null; }
+			console.info('[INDEX] /api/predict response', res.status, body);
+
+			if (!res.ok || !body || !body.success) {
+				const msg = body && body.error ? body.error : ('Server returned ' + res.status);
+				showError(msg);
+				return;
+			}
+
+			// Persist API result to sessionStorage so /results can render it reliably
+			try { sessionStorage.setItem('last_prediction', JSON.stringify(body)); } catch (err) { console.warn('sessionStorage.setItem failed', err); }
+
+			// Navigate to results page; results.html will prefer sessionStorage and then fallback to server API
+			window.location.href = '/results';
+
+		} catch (err) {
+			console.error('[INDEX] submitPrediction error', err);
+			showError('Network/server error: ' + (err && err.message ? err.message : err));
+		} finally {
+			try { hideSpinner(); } catch (_) {}
+			try { const btn = document.getElementById('submitBtn'); if (btn) btn.disabled = false; } catch (_) {}
+		}
+	}
+
+	// Helper functions declared first (local to this script)
+	const el = id => document.getElementById(id);
+	const showError = msg => { const e = el('errorMessage'); if (e){ e.textContent = msg; e.style.display = 'block'; } };
+	const hideError = () => { const e = el('errorMessage'); if (e){ e.textContent = ''; e.style.display = 'none'; } };
+	const showSpinner = () => { const s = el('loadingSpinner'); if (s) s.style.display = 'block'; };
+	const hideSpinner = () => { const s = el('loadingSpinner'); if (s) s.style.display = 'none'; };
+	const readFormData = () => ({
+		region: el('region').value,
+		district: el('district').value,
+		crop: el('crop').value,
+		acres: parseFloat(el('acres').value) || 1,
+		forecast_months: parseInt(el('forecast_months').value, 10)
+	});
+
+	// New helper to render requirements per-acre + totals (client-side)
+	function renderRequirementsTable(requirements, acres) {
+		const containerRows = [];
+		if (!requirements || Object.keys(requirements).length === 0) return '';
+		for (const [name, val] of Object.entries(requirements)) {
+			let perAcre = null;
+			let unit = '';
+
+			if (val && typeof val === 'object') {
+				// common keys from crop_requirements: per_acre, amount, amount_per_acre, unit
+				perAcre = val.per_acre ?? val.amount_per_acre ?? val.amount ?? val.value ?? null;
+				unit = val.unit ?? val.units ?? '';
+			} else if (typeof val === 'number') {
+				perAcre = val;
+			} else if (typeof val === 'string' && !isNaN(Number(val))) {
+				perAcre = Number(val);
+			}
+
+			const perStr = (perAcre !== null && perAcre !== undefined && perAcre !== '') ? `${Number(perAcre)} ${unit}`.trim() : '-';
+			const total = (perAcre !== null && perAcre !== undefined && perAcre !== '' && !isNaN(Number(perAcre)))
+				? (Number(perAcre) * (Number(acres) || 1))
+				: null;
+			const totalStr = total !== null ? `${Number(total).toLocaleString()} ${unit}`.trim() : '-';
+
+			containerRows.push(`<tr>
+				<td>${name}</td>
+				<td class="text-right">${perStr}</td>
+				<td class="text-right">${totalStr}</td>
+			</tr>`);
+		}
+
+		return `<div class="card mb-3">
+			<div class="card-header">Crop Requirements (per acre)</div>
+			<div class="card-body">
+				<table class="table table-sm">
+					<thead><tr><th>Input</th><th class="text-right">Per Acre</th><th class="text-right">Total for ${acres} acres</th></tr></thead>
+					<tbody>${containerRows.join('')}</tbody>
+				</table>
+			</div>
+		</div>`;
+	}
+
+	// Replace renderResults to include quantities from requirements per input
+	function renderResults(resp){
+		const container = el('resultsContainer');
+		if (!container) return;
+		container.innerHTML = '';
+		const inputs = resp.inputs || {};
+		const req = resp.requirements || {};
+		const forecasts = resp.forecasts || [];
+
+		const inputsHtml = `<div class="card mb-3">
+			<div class="card-body">
+				<h5>Input Details</h5>
+				<ul>
+					<li><strong>Region:</strong> ${inputs.region || ''}</li>
+					<li><strong>District:</strong> ${inputs.district || ''}</li>
+					<li><strong>Crop:</strong> ${inputs.crop || ''}</li>
+					<li><strong>Acres:</strong> ${inputs.acres || ''}</li>
+					<li><strong>Forecast months:</strong> ${inputs.forecast_months || ''}</li>
+				</ul>
+			</div>
+		</div>`;
+		container.insertAdjacentHTML('beforeend', inputsHtml);
+		container.insertAdjacentHTML('beforeend', renderRequirementsTable(req, inputs.acres));
+
+		if (!Array.isArray(forecasts) || forecasts.length===0){
+			container.insertAdjacentHTML('beforeend', `<div class="alert alert-info">No forecast data returned.</div>`);
+			return;
+		}
+
+		const keys = ['seed','fertilizer','herbicide','pesticide','labor'];
+		const acresN = Number(inputs.acres) || 1;
+
+		for (const f of forecasts){
+			const month = f.month || f.month_name || '';
+			let rows = '';
+			let monthlyTotalCostAll = 0;
+
+			for (const k of keys){
+				// predicted = unit price from model (ensure numeric)
+				const predicted = f[k] !== undefined && f[k] !== null ? Number(String(f[k]).replace(/,/g,'')) : null;
+
+				// per-acre quantity from requirements (ensure numeric)
+				let perAcreQty = null;
+				let unit = '';
+				const rVal = req && (req[k] ?? req[k.charAt(0).toUpperCase()+k.slice(1)] ?? req[k + '_requirement'] ?? null);
+				if (rVal != null) {
+					if (typeof rVal === 'object') {
+						perAcreQty = rVal.per_acre ?? rVal.amount_per_acre ?? rVal.amount ?? rVal.value ?? null;
+						unit = rVal.unit ?? rVal.units ?? '';
+					} else {
+						perAcreQty = rVal;
+					}
+					// normalize to number if possible
+					perAcreQty = perAcreQty !== null ? Number(String(perAcreQty).replace(/,/g,'')) : null;
+					if (Number.isNaN(perAcreQty)) perAcreQty = null;
+				}
+
+				const totalQty = perAcreQty !== null ? (perAcreQty * acresN) : null;
+
+				// total cost = predicted (unit price) * perAcreQty (qty per acre) * acres
+				// fallback: total cost = predicted * acres (treat predicted as cost per acre)
+				let totalCostDisplay = '-';
+				let totalCostNumeric = 0;
+				if (predicted !== null && !Number.isNaN(predicted)) {
+					if (perAcreQty !== null && !Number.isNaN(perAcreQty)) {
+						// correct formula: unit_price * qty_per_acre * acres
+						totalCostNumeric = predicted * perAcreQty * acresN;
+						totalCostDisplay = totalCostNumeric.toLocaleString() + ' UGX';
+					} else {
+						totalCostNumeric = predicted * acresN;
+						totalCostDisplay = totalCostNumeric.toLocaleString() + ' UGX';
+					}
+					monthlyTotalCostAll += totalCostNumeric;
+				}
+
+				// debug — shows values used for calc (remove if not needed)
+				console.info('[INDEX] calc', { input: k, predicted, perAcreQty, acresN, totalQty, totalCostNumeric });
+
+				rows += `<tr>
+					<td>${k.charAt(0).toUpperCase()+k.slice(1)}</td>
+					<td class="text-right">${perAcreQty !== null ? `${perAcreQty} ${unit}`.trim() : '-'}</td>
+					<td class="text-right">${totalQty !== null ? `${Number(totalQty).toLocaleString()} ${unit}`.trim() : '-'}</td>
+					<td class="text-right">${predicted !== null ? Number(predicted).toLocaleString() + ' UGX' : '-'}</td>
+					<td class="text-right">${totalCostDisplay}</td>
+				</tr>`;
+			}
+
+			// footer: total of computed total costs
+			rows += `<tr class="table-info font-weight-bold">
+						<td>Monthly Total</td>
+						<td></td>
+						<td></td>
+						<td></td>
+						<td class="text-right"><strong>${monthlyTotalCostAll.toLocaleString()} UGX</strong></td>
+					</tr>`;
+
+			const card = `<div class="card mb-3">
+				<div class="card-header"><strong>${month}</strong></div>
+				<div class="card-body">
+					<div class="table-responsive">
+						<table class="table table-sm">
+							<thead>
+								<tr>
+									<th>Input</th>
+									<th class="text-right">Qty / Acre</th>
+									<th class="text-right">Total Qty</th>
+									<th class="text-right">Price / Unit</th>
+									<th class="text-right">Total Cost</th>
+								</tr>
+							</thead>
+							<tbody>${rows}</tbody>
+						</table>
+					</div>
+				</div>
+			</div>`;
+			container.insertAdjacentHTML('beforeend', card);
+		}
+
+		container.scrollIntoView({behavior:'smooth'});
+	}
+
+	/* Robust handler attachment: uses fetch first, falls back to SERVER_* maps on error */
+	document.addEventListener('DOMContentLoaded', function () {
+		console.info('[INDEX] DOMContentLoaded (robust with server fallback)');
+
+		try {
+			const regionEl = el('region');
+			const districtEl = el('district');
+			const cropEl = el('crop');
+			const monthsEl = el('forecast_months');
+			const submitBtn = el('submitBtn');
+
+			// Ensure months select is enabled (was reported disabled)
+			if (monthsEl) {
+				monthsEl.disabled = false;
+				console.info('[INDEX] forecast_months enabled');
+			}
+
+			const setOptions = (selectEl, items, placeholder) => {
+				selectEl.innerHTML = `<option value="">${placeholder}</option>` + items.map(i => `<option value="${i}">${i}</option>`).join('');
+				// only enable when there are real options
+				selectEl.disabled = !(Array.isArray(items) && items.length > 0);
+				console.info(`[INDEX] setOptions on #${selectEl.id}: count=${items.length}, disabled=${selectEl.disabled}`);
+			};
+
+			// Guard each handler so one failing handler doesn't break the rest
+			if (regionEl) {
+				regionEl.onchange = async function () {
+					try {
+						hideError();
+						const region = this.value;
+						console.info('[INDEX] region change', region);
+						setOptions(districtEl, [], 'Select District');
+						setOptions(cropEl, [], 'Select Crop');
+						if (!region) return;
+
+						// try network first
+						let list = null;
+						try {
+							const r = await fetch('/get_districts/' + encodeURIComponent(region));
+							if (r.ok) list = await r.json();
+						} catch (e) {
+							console.warn('[INDEX] fetch /get_districts failed, will use server fallback', e);
+						}
+						// fallback to server-embedded map
+						if (!Array.isArray(list) || list.length === 0) {
+							list = (window.SERVER_DISTRICTS && window.SERVER_DISTRICTS[region]) || [];
+							console.info('[INDEX] using SERVER_DISTRICTS fallback for', region, list);
+						}
+						setOptions(districtEl, list, 'Select District');
+					} catch (err) {
+						console.error('[INDEX] region change handler error', err);
+						showError('Failed to load districts');
+					}
+				};
+			}
+
+			if (districtEl) {
+				districtEl.onchange = async function () {
+					try {
+						hideError();
+						const district = this.value;
+						const region = regionEl ? regionEl.value : '';
+						console.info('[INDEX] district change', { region, district });
+						setOptions(cropEl, [], 'Select Crop');
+						if (!district) return;
+
+						// try network first
+						let list = null;
+						try {
+							const r = await fetch('/get_crops/' + encodeURIComponent(region) + '/' + encodeURIComponent(district));
+							if (r.ok) list = await r.json();
+						} catch (e) {
+							console.warn('[INDEX] fetch /get_crops failed, will use server fallback', e);
+						}
+						// fallback to server-embedded map keyed by district
+						if (!Array.isArray(list) || list.length === 0) {
+							list = (window.SERVER_CROPS && window.SERVER_CROPS[district]) || [];
+							console.info('[INDEX] using SERVER_CROPS fallback for', district, list);
+						}
+						setOptions(cropEl, list, 'Select Crop');
+					} catch (err) {
+						console.error('[INDEX] district change handler error', err);
+						showError('Failed to load crops');
+					}
+				};
+			}
+
+			console.info('[INDEX] handlers attached');
+		} catch (e) {
+			console.error('[INDEX] DOMContentLoaded top-level error', e);
+			// show a visible hint so user knows JS failed early
+			const em = el('errorMessage');
+			if (em) { em.textContent = 'Client JS initialization failed. Check console.'; em.style.display = 'block'; }
+		}
+	});
+	</script>
+</body>
+</html>
+
